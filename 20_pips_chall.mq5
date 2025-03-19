@@ -1,14 +1,13 @@
 //+------------------------------------------------------------------+
 //| Optimized EMA Crossover EA with Visual Signals                  |
 //+------------------------------------------------------------------+
-#property copyright "Anony$peedy"
-#property version   "1.11"
+#property copyright "MQL5 Coder"
+#property version   "1.10"
 #property strict
 
 // --- Input Parameters ---
 input int FastEMA_Period = 10;    // Fast EMA period
 input int SlowEMA_Period = 20;    // Slow EMA period
-input double LotSize = 0.1;       // Fixed lot size
 input double StopLoss = 50;       // Stop Loss in pips
 input double TakeProfit = 100;    // Take Profit in pips
 input int Slippage = 3;           // Slippage
@@ -21,6 +20,10 @@ string AllowedSymbols[] = {"EURUSD", "CADJPY", "XAUUSD"};
 int FastEMA_Handle, SlowEMA_Handle;
 double FastEMA_Buffer[], SlowEMA_Buffer[];
 string CSVFileName = "EMA_Crossover_Data.csv";
+double LotProgression[] = {0.03, 0.04, 0.05, 0.07, 0.09, 0.11, 0.14, 0.19, 0.24, 0.32,
+                     0.41, 0.54, 0.70, 0.91, 1.18, 1.54, 2.00, 2.60, 3.37, 4.39,
+                     5.7, 7.41, 9.64, 12.53, 16.28, 21.17, 27.52, 35.78, 46.51, 60.46};  // Lot progression
+int currentLotIndex = 0; // Track the current lot size index
 
 //+------------------------------------------------------------------+
 //| Expert Initialization Function                                  |
@@ -99,7 +102,7 @@ void OnTick()
                 {
                     SL = NormalizeDouble(Bid - StopLoss * _Point * GetPipMultiplier(), _Digits);
                     TP = NormalizeDouble(Bid + TakeProfit * _Point * GetPipMultiplier(), _Digits);
-                    OpenTrade(ORDER_TYPE_BUY, LotSize, Ask, SL, TP);
+                    OpenTrade(ORDER_TYPE_BUY, GetDynamicLotSize(), Ask, SL, TP);
 
                     // Outcome can be defined here, for example, if TP/SL is hit
                     positionOutcome = "BuySignal";
@@ -111,7 +114,7 @@ void OnTick()
                 {
                     SL = NormalizeDouble(Ask + StopLoss * _Point * GetPipMultiplier(), _Digits);
                     TP = NormalizeDouble(Ask - TakeProfit * _Point * GetPipMultiplier(), _Digits);
-                    OpenTrade(ORDER_TYPE_SELL, LotSize, Bid, SL, TP);
+                    OpenTrade(ORDER_TYPE_SELL, GetDynamicLotSize(), Bid, SL, TP);
 
                     // Outcome can be defined here, for example, if TP/SL is hit
                     positionOutcome = "SellSignal";
@@ -121,10 +124,23 @@ void OnTick()
                 }
 
                 // Log position opened data, including the outcome
-                LogPositionData(BuySignal ? "Buy" : "Sell", LotSize, GetLastTradeOutcome());
+                LogPositionData(BuySignal ? "Buy" : "Sell", GetDynamicLotSize(), GetLastTradeOutcome());
             }
         }
     }
+}
+
+
+double GetDynamicLotSize()
+{
+    string lastOutcome = GetLastTradeOutcome();
+    
+    if (lastOutcome == "Win" && currentLotIndex < ArraySize(LotProgression) - 1)
+        currentLotIndex++;  // Move forward if a trade won
+    else if (lastOutcome == "Loss" && currentLotIndex > 0)
+        currentLotIndex--;  // Move backward if a trade lost
+
+    return LotProgression[currentLotIndex];  // Return the lot size from the array
 }
 
 //+------------------------------------------------------------------+
@@ -137,7 +153,7 @@ void OpenTrade(ENUM_ORDER_TYPE orderType, double lot, double price, double sl, d
 
     request.action = TRADE_ACTION_DEAL;
     request.symbol = _Symbol;
-    request.volume = lot;
+    request.volume = GetDynamicLotSize(); // Use dynamic lot size
     request.type = orderType;
     request.price = price;
     request.sl = sl;
