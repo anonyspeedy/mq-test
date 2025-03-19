@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //| Optimized EMA Crossover EA with Visual Signals                  |
 //+------------------------------------------------------------------+
-#property copyright "MQL5 Coder"
-#property version   "1.10"
+#property copyright "Anony$peedy"
+#property version   "1.11"
 #property strict
 
 // --- Input Parameters ---
@@ -51,7 +51,7 @@ int OnInit()
         return INIT_FAILED;
     }
     
-    FileWrite(fileHandle, "Timestamp", "Symbol", "Bid", "Ask", "FastEMA", "SlowEMA", "BuySignal", "SellSignal", "Spread", "Volatility", "PositionType", "PositionSize");
+    FileWrite(fileHandle, "Timestamp", "Symbol", "Bid", "Ask", "FastEMA", "SlowEMA", "BuySignal", "SellSignal", "Spread", "PositionType", "PositionSize", "Outcome");
     FileClose(fileHandle);
 
     Print("✅ EA Initialized successfully.");
@@ -94,11 +94,15 @@ void OnTick()
             if (BuySignal || SellSignal)
             {
                 double SL, TP;
+                string positionOutcome = "Unknown"; // Initialize Outcome as Unknown
                 if (BuySignal)
                 {
                     SL = NormalizeDouble(Bid - StopLoss * _Point * GetPipMultiplier(), _Digits);
                     TP = NormalizeDouble(Bid + TakeProfit * _Point * GetPipMultiplier(), _Digits);
                     OpenTrade(ORDER_TYPE_BUY, LotSize, Ask, SL, TP);
+
+                    // Outcome can be defined here, for example, if TP/SL is hit
+                    positionOutcome = "BuySignal";
 
                     // Draw bullish signal (green triangle)
                     DrawSignal("BuySignal", TimeCurrent(), Bid, clrGreen, 234);
@@ -109,12 +113,15 @@ void OnTick()
                     TP = NormalizeDouble(Ask - TakeProfit * _Point * GetPipMultiplier(), _Digits);
                     OpenTrade(ORDER_TYPE_SELL, LotSize, Bid, SL, TP);
 
+                    // Outcome can be defined here, for example, if TP/SL is hit
+                    positionOutcome = "SellSignal";
+
                     // Draw bearish signal (red triangle)
                     DrawSignal("SellSignal", TimeCurrent(), Ask, clrRed, 233);
                 }
 
-                // Log position opened data
-                LogPositionData(BuySignal ? "Buy" : "Sell", LotSize);
+                // Log position opened data, including the outcome
+                LogPositionData(BuySignal ? "Buy" : "Sell", LotSize, GetLastTradeOutcome());
             }
         }
     }
@@ -147,11 +154,39 @@ void OpenTrade(ENUM_ORDER_TYPE orderType, double lot, double price, double sl, d
     }
 }
 
+string GetLastTradeOutcome()
+{
+    // Select all closed trades within the last 100 bars
+    if (!HistorySelect(0, TimeCurrent()))
+        return "Unknown";
+
+    // Get the total number of closed positions
+    int totalHistory = HistoryDealsTotal();
+    
+    for (int i = totalHistory - 1; i >= 0; i--)
+    {
+        ulong ticket = HistoryDealGetTicket(i);
+        if (ticket > 0)
+        {
+            string symbol = HistoryDealGetString(ticket, DEAL_SYMBOL);
+            if (symbol == _Symbol)
+            {
+                double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT);
+                if (profit > 0) return "Win";
+                if (profit < 0) return "Loss";
+            }
+        }
+    }
+    return "Unknown"; // No closed trades found
+}
+
+
 //+------------------------------------------------------------------+
 //| Log Position Data                                               |
 //+------------------------------------------------------------------+
-void LogPositionData(string positionType, double positionSize)
+void LogPositionData(string positionType, double positionSize, string outcome)
 {
+           
     // Copy EMA values
     if (CopyBuffer(FastEMA_Handle, 0, 0, 1, FastEMA_Buffer) < 1 ||
         CopyBuffer(SlowEMA_Handle, 0, 0, 1, SlowEMA_Buffer) < 1)
@@ -166,12 +201,11 @@ void LogPositionData(string positionType, double positionSize)
     double Spread = Ask - Bid;
 
     // Determine EMA crossover signals
-    int BuySignal = 0, SellSignal = 0;
-    if (FastEMA_Buffer[0] > SlowEMA_Buffer[0]) BuySignal = 1;
-    if (FastEMA_Buffer[0] < SlowEMA_Buffer[0]) SellSignal = 1;
+    int BuySignal = (FastEMA_Buffer[0] > SlowEMA_Buffer[0]) ? 1: 0;
+    int SellSignal = (FastEMA_Buffer[0] < SlowEMA_Buffer[0]) ? 1 : 0;
 
     // Log data to CSV
-    int fileHandle = FileOpen(CSVFileName, FILE_READ | FILE_WRITE | FILE_CSV | FILE_ANSI, ",");
+    int fileHandle = FileOpen(CSVFileName, FILE_READ | FILE_WRITE | FILE_CSV | FILE_ANSI , ",");
     if (fileHandle != INVALID_HANDLE)
     {
         FileSeek(fileHandle, 0, SEEK_END);
@@ -186,9 +220,9 @@ void LogPositionData(string positionType, double positionSize)
             IntegerToString(BuySignal), // BuySignal
             IntegerToString(SellSignal), // SellSignal
             DoubleToString(Spread, _Digits), // Spread
-            "Volatility", // Placeholder for volatility
             positionType, // PositionType
-            DoubleToString(positionSize, 2) // PositionSize
+            DoubleToString(positionSize, 2), // PositionSize
+            outcome // Outcome
         );
         FileClose(fileHandle);
     }
