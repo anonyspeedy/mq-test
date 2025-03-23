@@ -1,13 +1,15 @@
 //+------------------------------------------------------------------+
 //| Optimized EMA Crossover EA with Visual Signals                  |
 //+------------------------------------------------------------------+
-#property copyright "MQL5 Coder"
-#property version   "1.10"
+#property copyright "Aony$peedy"
+#property version   "1.13"
 #property strict
 
 // --- Input Parameters ---
 input int FastEMA_Period = 10;    // Fast EMA period
 input int SlowEMA_Period = 20;    // Slow EMA period
+input double FixedLotSize = 0.1;          // Fixed lot size (used if UseLotProgression is false)
+input bool UseLotProgression = false;      // Use lot progression (true/false)
 input double StopLoss = 50;       // Stop Loss in pips
 input double TakeProfit = 100;    // Take Profit in pips
 input int Slippage = 3;           // Slippage
@@ -130,17 +132,37 @@ void OnTick()
     }
 }
 
-
 double GetDynamicLotSize()
 {
+    if (!UseLotProgression)
+    {
+        // Use fixed lot size
+        Print("Using fixed lot size: ", FixedLotSize);
+        return FixedLotSize;
+    }
+
+    // Use lot progression
     string lastOutcome = GetLastTradeOutcome();
+    Print("Last trade outcome: ", lastOutcome);
     
     if (lastOutcome == "Win" && currentLotIndex < ArraySize(LotProgression) - 1)
+    {
         currentLotIndex++;  // Move forward if a trade won
+        Print("Trade won! Increasing lot size index to: ", currentLotIndex);
+    }
     else if (lastOutcome == "Loss" && currentLotIndex > 0)
+    {
         currentLotIndex--;  // Move backward if a trade lost
+        Print("Trade lost! Decreasing lot size index to: ", currentLotIndex);
+    }
 
-    return LotProgression[currentLotIndex];  // Return the lot size from the array
+    // Ensure currentLotIndex is within bounds
+    currentLotIndex = MathMin(currentLotIndex, ArraySize(LotProgression) - 1);
+    currentLotIndex = MathMax(currentLotIndex, 0);
+
+    double lotSize = LotProgression[currentLotIndex];
+    Print("Selected lot size: ", lotSize);
+    return lotSize;  // Return the lot size from the array
 }
 
 //+------------------------------------------------------------------+
