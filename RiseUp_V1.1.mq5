@@ -6,6 +6,8 @@
 #property link      "https://t.me/AnonySpeedy"
 #property version   "1.3"
 
+#define EA_VERSION "1.3"
+
 #include <Trade\Trade.mqh>    //included to save lot of time like buying selling positioning code included there
 #include <PropfirmPanel.mqh>
    CTrade         trade;      //on Class trade when can buy sell open close positions
@@ -510,24 +512,24 @@ void OnTick()
     IsTradingAllowedPropValues();
    
     if(IsNewBar()){
-        string statusText = "🟢 ENABLED";
+        string statusText = "RiseUp v" + EA_VERSION + " 🟢 ENABLED";
         color textColor = clrLime;
 
         if (!IsTradingAllowedPropValues()) {
-            statusText = "🔴 Max DD: " + StringSubstr((string)DD_AT_Pct, 0, 4) + "%";
+            statusText = "RiseUp v" + EA_VERSION + " 🔴 Max DD: " + StringSubstr((string)DD_AT_Pct, 0, 4) + "%";
             textColor = clrOrangeRed;
         }
         else if (IsRSIFilter()) {
             double rsiValue = iRSI(_Symbol, RSITimeframe, RSI_MA, RSI_AppPrice);
-            statusText = "⚠️ RSI: " + StringSubstr((string)rsiValue, 0, 4);
+            statusText = "RiseUp v" + EA_VERSION + " ⚠️ RSI: " + StringSubstr((string)rsiValue, 0, 4);
             textColor = clrGold;
         }
         else if (IsMAFilter()) {
-            statusText = "📉 MA Filter Active";
+            statusText = "RiseUp v" + EA_VERSION + " 📉 MA Filter Active";
             textColor = clrViolet;
         }
         else if (IsUpcomingNews()) {
-            statusText = "📢 News Ahead";
+            statusText = "RiseUp v" + EA_VERSION + " 📢 News Ahead";
             textColor = clrDeepPink;
         }
 
